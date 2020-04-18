@@ -22,7 +22,26 @@ use gio::prelude::*;
 use gtk::{Application, ApplicationWindow};
 // GTK end
 
+#[derive(Copy, Clone)]
+struct CurrencyPair {
+    left_type: &'static str,
+    left_val: f64,
+    conv_rate: f64,
+    right_type: &'static str,
+    right_val: f64,
+}
 
+impl CurrencyPair {
+    fn new(left: &'static str, right: &'static str) -> CurrencyPair {
+        CurrencyPair {
+            left_type: left,
+            left_val: 1.0,
+            conv_rate: 0.0,
+            right_type: right,
+            right_val: 0.0,
+        }
+    }
+}
 
 fn main() {
 
@@ -34,13 +53,13 @@ fn main() {
 
     application.connect_activate(|app| {
         let window = ApplicationWindow::new(app);
+        let mut curr_pair = CurrencyPair::new("USD", "CZK");
+
         window.set_title("Currency");
         window.set_default_size(350, 70);
 
         // my code
-        let currency = "USD".to_string();
-
-        let rates = read_rates(&currency);
+        let rates = read_rates(&curr_pair.left_type.to_string()); // read filename directly
         let rates = match rates {
             Ok(file) => file,
             Err(error) => {
@@ -57,9 +76,9 @@ fn main() {
         };
     
         let p: JsonValue = json;
-        println!("The data is based on {} and downloaded {}", p["base"], p["date"]);
-        let conversion_rate = p["rates"]["CZK"].as_f64().unwrap();
-        println!("conversion rate: {}", conversion_rate);
+       println!("The data is based on {} and downloaded {}", p["base"], p["date"]);
+        curr_pair.conv_rate = p["rates"]["CZK"].as_f64().unwrap();
+        println!("conversion rate: {}", curr_pair.conv_rate);
         // end of my code    
 
         let input_field_right = gtk::Entry::new();
@@ -70,8 +89,8 @@ fn main() {
         let top_column = gtk::Box::new(gtk::Orientation::Horizontal, 1);
         let row = gtk::Box::new(gtk::Orientation::Vertical, 5);
         
-        let label_left = gtk::Label::new(Some(&currency));
-        let label_right = gtk::Label::new(Some("CZK")); // FIXME hardcoded
+        let label_left = gtk::Label::new(Some(&curr_pair.left_type));
+        let label_right = gtk::Label::new(Some(&curr_pair.right_type));
 
         top_column.add(&label_left);
         top_column.add(&input_field_left);
@@ -89,20 +108,22 @@ fn main() {
 
         input_field_left.connect_changed(move |this| {
             let buffer = this.get_buffer();
-            let num_to_convert = buffer.get_text();
+            let input_left = buffer.get_text();
             
-            let num_to_convert = num_to_convert.trim().parse();
-
-            let num_to_convert: f64 = match num_to_convert {
+            let input_left = input_left.trim().parse();
+            // FIXME don't want to work with copy
+            let mut working_pair = curr_pair;
+            working_pair.left_val = match input_left {
                 Ok(num) => num,
                 Err(error) => {
                     println!("Invalid number: {:?}", error);
                     0.0
                 },
             };
-            let converted = num_to_convert * conversion_rate;
-            println!("{} USD is {} CZK", num_to_convert, converted);
-            input_field_right.set_text(&converted.to_string());
+
+            working_pair.right_val = working_pair.left_val * working_pair.conv_rate;
+            println!("{} {} is {} {}", working_pair.left_val, working_pair.left_type, working_pair.right_val, working_pair.right_type);
+            input_field_right.set_text(&working_pair.right_val.to_string());
         });
 
     });
@@ -124,51 +145,3 @@ fn read_rates(currency: &String) -> Result<String, io::Error> {
 
     Ok(content)
 }
-
-/*fn read_input(&this gtk::Entry) -> f64 {
-    let buffer = this.get_buffer();
-    let num_to_convert = buffer.get_text();
-    
-    let num_to_convert = num_to_convert.trim().parse();
-
-    let num_to_convert: f64 = match num_to_convert {
-        Ok(num) => num,
-        Err(error) => {
-            println!("Invalid number: {:?}", error);
-            0.0
-        },
-    };
-    let converted = num_to_convert * 25.0; //conversion_rate;
-    println!("{} USD is {} CZK", num_to_convert, converted);
-
-    converted
-}
-*/
-/*#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_read_rates() {
-        let currency: String = "USD".to_string();
-        let okay: String = "okay".to_string();
-
-        let rates = read_rates(&currency);
-        match rates {
-            Ok(v) => assert_eq!(v, okay),
-            Err(_e) => assert!(false),
-        }
-    }
-
-    #[test]
-    fn test_read_rates_fail() {
-        let currency: String = "USDX".to_string();
-
-        let rates = read_rates(&currency);
-        match rates {
-            Ok(_v) => assert!(false),
-            Err(_e) => assert!(true),
-        }
-    }
-}
-*/
