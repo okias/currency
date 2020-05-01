@@ -2,7 +2,6 @@
  * Author: David Heidelberg <david@ixit.cz>
  */
 
-extern crate reqwest;
 extern crate serde_json;
 
 use std::io;
@@ -53,17 +52,20 @@ fn main() {
 
     application.connect_activate(|app| {
         let window = ApplicationWindow::new(app);
-        let mut curr_pair = CurrencyPair::new("USD", "CZK");
 
         window.set_title("Currency");
         window.set_default_size(350, 70);
 
         // my code
-        let rates = read_rates(&curr_pair.left_type.to_string()); // read filename directly
+        let mut curr_pair = CurrencyPair::new("USD", "CZK");
+
+
+        // let rates = read_rates(&curr_pair.left_type.to_string()); // read filename directly
+        let rates = download_rates(&curr_pair.left_type.to_string());
         let rates = match rates {
-            Ok(file) => file,
+            Ok(data) => data,
             Err(error) => {
-                panic!("Cannot open file: {:?}", error);
+                panic!("Cannot get currency informations: {:?}", error);
             },
         };
     
@@ -123,6 +125,7 @@ fn main() {
 
             working_pair.right_val = working_pair.left_val * working_pair.conv_rate;
             println!("{} {} is {} {}", working_pair.left_val, working_pair.left_type, working_pair.right_val, working_pair.right_type);
+            // prev context
             input_field_right.set_text(&working_pair.right_val.to_string());
         });
 
@@ -144,4 +147,20 @@ fn read_rates(currency: &String) -> Result<String, io::Error> {
     f.read_to_string(&mut content)?;
 
     Ok(content)
+}
+
+fn download_rates(currency: &String) -> Result<String, attohttpc::Error> {
+        let url = "https://api.openrates.io/latest?base=   ".replace("   ",currency);
+        let url = attohttpc::get(url).send();
+        let url = match url {
+            Ok(data) => data.text(),
+            Err(e) => return Err(e),
+        };
+
+        let data = match url {
+            Ok(data) => data,
+            Err(e) => return Err(e),
+
+        };
+        Ok(data.to_string())
 }
